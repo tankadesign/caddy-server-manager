@@ -99,7 +99,7 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Scan and migrate configurations
-	sites, err := scanCaddyConfigs(cfg)
+	sites, configFiles, err := scanCaddyConfigs(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to scan Caddy configs: %v", err)
 	}
@@ -146,6 +146,21 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Failed to migrate %s: %v\n", s.Domain, err)
 			continue
 		}
+
+		// Extract and migrate basic auth configurations
+		basicAuths, err := extractBasicAuthFromConfig(configFiles[s.Domain], s.ID)
+		if err != nil {
+			fmt.Printf("Warning: Failed to extract basic auth for %s: %v\n", s.Domain, err)
+		} else if len(basicAuths) > 0 {
+			for _, auth := range basicAuths {
+				if err := db.CreateBasicAuth(&auth); err != nil {
+					fmt.Printf("Warning: Failed to migrate basic auth for %s%s: %v\n", s.Domain, auth.Path, err)
+				} else if cfg.Verbose {
+					fmt.Printf("  Migrated basic auth: %s%s (user: %s)\n", s.Domain, auth.Path, auth.Username)
+				}
+			}
+		}
+
 		migrated++
 		if cfg.Verbose {
 			fmt.Printf("Migrated: %s\n", s.Domain)
@@ -188,7 +203,7 @@ func createDatabaseBackup(dbPath string) error {
 	return nil
 }
 
-func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
+func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, map[string]string, error) {
 	sitesDir := filepath.Join(cfg.ConfigDir, "available-sites")
 	enabledDir := filepath.Join(cfg.ConfigDir, "enabled-sites")
 
@@ -199,7 +214,7 @@ func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
 
 	// Check if directories exist
 	if _, err := os.Stat(sitesDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("available-sites directory not found: %s", sitesDir)
+		return nil, nil, fmt.Errorf("available-sites directory not found: %s", sitesDir)
 	}
 
 	// Get all configuration files (files without extensions, which is standard for Caddy)
@@ -207,7 +222,7 @@ func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
 	
 	entries, err := os.ReadDir(sitesDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read sites directory: %v", err)
+		return nil, nil, fmt.Errorf("failed to read sites directory: %v", err)
 	}
 	
 	for _, entry := range entries {
@@ -236,6 +251,8 @@ func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
 	}
 
 	var sites []database.Site
+	configFiles := make(map[string]string) // domain -> config file path
+	
 	for _, configFile := range files {
 		site, err := parseCaddyConfig(configFile, enabledDir, cfg)
 		if err != nil {
@@ -246,10 +263,11 @@ func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
 		}
 		if site != nil {
 			sites = append(sites, *site)
+			configFiles[site.Domain] = configFile
 		}
 	}
 
-	return sites, nil
+	return sites, configFiles, nil
 }
 
 func parseCaddyConfig(configFile, enabledDir string, cfg *config.CaddyConfig) (*database.Site, error) {
@@ -518,4 +536,79 @@ func isValidCaddyConfig(filePath string) bool {
 	
 	// If we find at least 2 Caddy-specific patterns, it's likely a Caddy config
 	return matchCount >= 2
+}
+
+// extractBasicAuthFromConfig extracts basic auth configurations from a Caddy config file
+func extractBasicAuthFromConfig(configFilePath string, siteID int) ([]database.BasicAuth, error) {
+	content, err := os.ReadFile(configFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	contentStr := string(content)
+	var basicAuths []database.BasicAuth
+
+	// Look for basic_auth blocks in different contexts
+	// Pattern 1: Route-based basic auth like "route /path* { basic_auth { ... } }"
+	routePattern := regexp.MustCompile(`route\s+([^\s{]+)[^{]*\{[^}]*basic_auth\s*\{([^}]+)\}`)
+	routeMatches := routePattern.FindAllStringSubmatch(contentStr, -1)
+	
+	for _, match := range routeMatches {
+		if len(match) >= 3 {
+			path := strings.TrimSpace(match[1])
+			// Remove trailing * from path patterns
+			path = strings.TrimSuffix(path, "*")
+			authBlock := match[2]
+			
+			auths := parseBasicAuthBlock(authBlock, path, siteID)
+			basicAuths = append(basicAuths, auths...)
+		}
+	}
+
+	// Pattern 2: Direct basic_auth blocks within site config
+	directPattern := regexp.MustCompile(`basic_auth\s*\{([^}]+)\}`)
+	directMatches := directPattern.FindAllStringSubmatch(contentStr, -1)
+	
+	for _, match := range directMatches {
+		if len(match) >= 2 {
+			authBlock := match[1]
+			// For direct basic auth, assume it applies to root path
+			auths := parseBasicAuthBlock(authBlock, "/", siteID)
+			basicAuths = append(basicAuths, auths...)
+		}
+	}
+
+	return basicAuths, nil
+}
+
+// parseBasicAuthBlock parses a basic_auth block and extracts username/password pairs
+func parseBasicAuthBlock(authBlock, path string, siteID int) []database.BasicAuth {
+	var basicAuths []database.BasicAuth
+	
+	// Parse username password pairs
+	// Format: username hashedpassword
+	lines := strings.Split(authBlock, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		
+		// Split by whitespace to get username and password
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			username := parts[0]
+			password := parts[1]
+			
+			basicAuth := database.BasicAuth{
+				SiteID:   siteID,
+				Path:     path,
+				Username: username,
+				Password: password,
+			}
+			basicAuths = append(basicAuths, basicAuth)
+		}
+	}
+	
+	return basicAuths
 }
