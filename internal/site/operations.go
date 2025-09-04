@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 )
@@ -261,19 +262,12 @@ func (sm *CaddySiteManager) extractDocumentRoot(configFile, domain string) (stri
 			fmt.Printf("Line %d: %s\n", lineNum, line)
 		}
 		
-		// Check if we're entering the domain block
-		if strings.Contains(line, domain) && strings.Contains(line, "{") {
+		// Check if we're entering the domain block (only if not already in one)
+		if !inDomainBlock && strings.HasPrefix(line, domain) && (strings.Contains(line, "{") || strings.HasSuffix(line, domain)) {
 			inDomainBlock = true
-			braceCount = 1
+			braceCount = strings.Count(line, "{") - strings.Count(line, "}")
 			if sm.Config.Verbose {
-				fmt.Printf("Found domain block for %s at line %d\n", domain, lineNum)
-			}
-			continue
-		} else if strings.Contains(line, domain) && !strings.Contains(line, "{") {
-			inDomainBlock = true
-			braceCount = 0
-			if sm.Config.Verbose {
-				fmt.Printf("Found domain block for %s at line %d (no opening brace)\n", domain, lineNum)
+				fmt.Printf("Found domain block for %s at line %d (braces: %d)\n", domain, lineNum, braceCount)
 			}
 			continue
 		}
@@ -283,6 +277,10 @@ func (sm *CaddySiteManager) extractDocumentRoot(configFile, domain string) (stri
 			openBraces := strings.Count(line, "{")
 			closeBraces := strings.Count(line, "}")
 			braceCount += openBraces - closeBraces
+			
+			if sm.Config.Verbose && sm.Config.DryRun {
+				fmt.Printf("  In domain block, braces: %d\n", braceCount)
+			}
 			
 			// Look for root directive
 			if strings.HasPrefix(line, "root ") || strings.Contains(line, "root ") {
@@ -911,6 +909,316 @@ func (sm *CaddySiteManager) getWordPressSalts() (string, error) {
 // copyDir recursively copies a directory
 func (sm *CaddySiteManager) copyDir(src, dst string) error {
 	return exec.Command("cp", "-R", src+"/.", dst+"/").Run()
+}
+
+// AddBasicAuth adds basic authentication to a specific path in a site
+func (sm *CaddySiteManager) AddBasicAuth(domain, path, username, password string) error {
+	if sm.Config.Verbose {
+		fmt.Printf("Adding basic auth for %s to path %s\n", domain, path)
+	}
+
+	// Validate inputs
+	if domain == "" || path == "" || username == "" || password == "" {
+		return fmt.Errorf("domain, path, username, and password are all required")
+	}
+
+	// Ensure path starts with /
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	configFile := filepath.Join(sm.Config.AvailableSites, domain)
+	
+	// Check if site exists
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return fmt.Errorf("site '%s' not found", domain)
+	}
+
+	if sm.Config.DryRun {
+		if sm.Config.Verbose {
+			fmt.Printf("Would add basic auth:\n")
+			fmt.Printf("  Domain: %s\n", domain)
+			fmt.Printf("  Path: %s\n", path)
+			fmt.Printf("  Username: %s\n", username)
+			fmt.Printf("  Password: %s\n", password)
+		}
+		return nil
+	}
+
+	// Read current config
+	content, err := os.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	// Generate password hash using Caddy's bcrypt
+	hashedPassword, err := sm.generatePasswordHash(password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+
+	// Add basic auth block
+	authBlock := fmt.Sprintf(`
+	# Basic auth for %s
+	@auth_%s {
+		path %s*
+	}
+	basic_auth @auth_%s {
+		%s %s
+	}`, path, sm.sanitizeName(path), path, sm.sanitizeName(path), username, hashedPassword)
+
+	// Insert auth block before the PHP processing
+	configStr := string(content)
+	phpIndex := strings.Index(configStr, "php_fastcgi")
+	if phpIndex == -1 {
+		return fmt.Errorf("could not find PHP configuration in site config")
+	}
+
+	// Insert auth block before PHP configuration
+	newConfig := configStr[:phpIndex] + authBlock + "\n\n\t" + configStr[phpIndex:]
+
+	// Write updated config
+	if err := os.WriteFile(configFile, []byte(newConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write updated config: %v", err)
+	}
+
+	// Reload Caddy
+	if err := sm.reloadCaddy(); err != nil {
+		return fmt.Errorf("failed to reload Caddy: %v", err)
+	}
+
+	fmt.Printf("Basic auth added for %s at path %s\n", domain, path)
+	return nil
+}
+
+// RemoveBasicAuth removes basic authentication from a specific path
+func (sm *CaddySiteManager) RemoveBasicAuth(domain, path string) error {
+	if sm.Config.Verbose {
+		fmt.Printf("Removing basic auth for %s from path %s\n", domain, path)
+	}
+
+	// Ensure path starts with /
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	configFile := filepath.Join(sm.Config.AvailableSites, domain)
+	
+	// Check if site exists
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return fmt.Errorf("site '%s' not found", domain)
+	}
+
+	if sm.Config.DryRun {
+		if sm.Config.Verbose {
+			fmt.Printf("Would remove basic auth from path: %s\n", path)
+		}
+		return nil
+	}
+
+	// Read current config
+	content, err := os.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	configStr := string(content)
+	
+	// Find and remove the auth block
+	authPattern := fmt.Sprintf(`\s*# Basic auth for %s.*?}\s*`, regexp.QuoteMeta(path))
+	re := regexp.MustCompile(authPattern)
+	
+	// Also try alternative pattern
+	if !re.MatchString(configStr) {
+		sanitizedPath := sm.sanitizeName(path)
+		authPattern = fmt.Sprintf(`\s*@auth_%s\s*{.*?}\s*basic_auth\s*@auth_%s\s*{.*?}\s*`, 
+			regexp.QuoteMeta(sanitizedPath), regexp.QuoteMeta(sanitizedPath))
+		re = regexp.MustCompile(authPattern)
+	}
+
+	if !re.MatchString(configStr) {
+		return fmt.Errorf("basic auth configuration for path %s not found", path)
+	}
+
+	newConfig := re.ReplaceAllString(configStr, "")
+
+	// Write updated config
+	if err := os.WriteFile(configFile, []byte(newConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write updated config: %v", err)
+	}
+
+	// Reload Caddy
+	if err := sm.reloadCaddy(); err != nil {
+		return fmt.Errorf("failed to reload Caddy: %v", err)
+	}
+
+	fmt.Printf("Basic auth removed for %s from path %s\n", domain, path)
+	return nil
+}
+
+// ModifyMaxUpload changes the maximum upload size for a site
+func (sm *CaddySiteManager) ModifyMaxUpload(domain, newSize string) error {
+	if sm.Config.Verbose {
+		fmt.Printf("Modifying max upload size for %s to %s\n", domain, newSize)
+	}
+
+	// Validate size format
+	if err := sm.validateSizeFormat(newSize); err != nil {
+		return fmt.Errorf("invalid size format: %v", err)
+	}
+
+	// Get site info
+	siteInfo, err := sm.getSiteInfo(domain)
+	if err != nil {
+		return fmt.Errorf("failed to get site info: %v", err)
+	}
+
+	if sm.Config.DryRun {
+		if sm.Config.Verbose {
+			fmt.Printf("Would modify max upload size:\n")
+			fmt.Printf("  Domain: %s\n", domain)
+			fmt.Printf("  New size: %s\n", newSize)
+			fmt.Printf("  PHP-FPM pool: %s\n", siteInfo.PoolName)
+		}
+		return nil
+	}
+
+	// Update PHP-FPM pool configuration
+	if err := sm.updatePHPPoolUploadSize(siteInfo, newSize); err != nil {
+		return fmt.Errorf("failed to update PHP pool: %v", err)
+	}
+
+	// Update Caddy configuration
+	if err := sm.updateCaddyUploadSize(domain, newSize); err != nil {
+		return fmt.Errorf("failed to update Caddy config: %v", err)
+	}
+
+	// Restart PHP-FPM
+	if err := sm.restartPHPFPM(siteInfo.PHPVersion); err != nil {
+		return fmt.Errorf("failed to restart PHP-FPM: %v", err)
+	}
+
+	// Reload Caddy
+	if err := sm.reloadCaddy(); err != nil {
+		return fmt.Errorf("failed to reload Caddy: %v", err)
+	}
+
+	fmt.Printf("Max upload size updated to %s for %s\n", newSize, domain)
+	return nil
+}
+
+// Helper methods for the modify functionality
+
+// generatePasswordHash generates a bcrypt hash for the password
+func (sm *CaddySiteManager) generatePasswordHash(password string) (string, error) {
+	// Use Caddy's hash-password command if available
+	cmd := exec.Command("caddy", "hash-password", "--plaintext", password)
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback to basic htpasswd if caddy command fails
+		cmd = exec.Command("htpasswd", "-bnB", "temp", password)
+		output, err = cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate password hash (install caddy or apache2-utils): %v", err)
+		}
+		// Extract just the hash part from htpasswd output (temp:HASH)
+		parts := strings.Split(strings.TrimSpace(string(output)), ":")
+		if len(parts) < 2 {
+			return "", fmt.Errorf("unexpected htpasswd output format")
+		}
+		return parts[1], nil
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// sanitizeName creates a safe name for Caddy directives
+func (sm *CaddySiteManager) sanitizeName(input string) string {
+	// Replace non-alphanumeric characters with underscores
+	re := regexp.MustCompile(`[^a-zA-Z0-9]`)
+	return re.ReplaceAllString(input, "_")
+}
+
+// validateSizeFormat validates the upload size format
+func (sm *CaddySiteManager) validateSizeFormat(size string) error {
+	// Allow formats like: 100M, 2G, 2GB, 512MB, 1024K, etc.
+	re := regexp.MustCompile(`^[0-9]+[KMGT]B?$`)
+	if !re.MatchString(strings.ToUpper(size)) {
+		return fmt.Errorf("size must be in format like 100M, 2G, 512MB, etc.")
+	}
+	return nil
+}
+
+// updatePHPPoolUploadSize updates the PHP-FPM pool configuration
+func (sm *CaddySiteManager) updatePHPPoolUploadSize(siteInfo *CaddySite, newSize string) error {
+	poolConfigFile := fmt.Sprintf("/etc/php/%s/fpm/pool.d/%s.conf", siteInfo.PHPVersion, siteInfo.PoolName)
+	
+	if _, err := os.Stat(poolConfigFile); os.IsNotExist(err) {
+		return fmt.Errorf("PHP pool config file not found: %s", poolConfigFile)
+	}
+
+	// Read current config
+	content, err := os.ReadFile(poolConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to read PHP pool config: %v", err)
+	}
+
+	configStr := string(content)
+	
+	// Update upload_max_filesize and post_max_size
+	uploadPattern := regexp.MustCompile(`php_admin_value\[upload_max_filesize\]\s*=\s*[^\n]+`)
+	postPattern := regexp.MustCompile(`php_admin_value\[post_max_size\]\s*=\s*[^\n]+`)
+	
+	configStr = uploadPattern.ReplaceAllString(configStr, fmt.Sprintf("php_admin_value[upload_max_filesize] = %s", newSize))
+	configStr = postPattern.ReplaceAllString(configStr, fmt.Sprintf("php_admin_value[post_max_size] = %s", newSize))
+
+	// Write updated config
+	if err := os.WriteFile(poolConfigFile, []byte(configStr), 0644); err != nil {
+		return fmt.Errorf("failed to write PHP pool config: %v", err)
+	}
+
+	if sm.Config.Verbose {
+		fmt.Printf("Updated PHP pool configuration: %s\n", poolConfigFile)
+	}
+
+	return nil
+}
+
+// updateCaddyUploadSize updates the Caddy configuration
+func (sm *CaddySiteManager) updateCaddyUploadSize(domain, newSize string) error {
+	configFile := filepath.Join(sm.Config.AvailableSites, domain)
+	
+	// Read current config
+	content, err := os.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to read Caddy config: %v", err)
+	}
+
+	configStr := string(content)
+	
+	// Update request_body max_size
+	pattern := regexp.MustCompile(`max_size\s+[^\n]+`)
+	if pattern.MatchString(configStr) {
+		configStr = pattern.ReplaceAllString(configStr, fmt.Sprintf("max_size %s", newSize))
+	} else {
+		// If no max_size found, add it to the request_body block
+		bodyPattern := regexp.MustCompile(`request_body\s*{`)
+		if bodyPattern.MatchString(configStr) {
+			configStr = bodyPattern.ReplaceAllString(configStr, fmt.Sprintf("request_body {\n\t\tmax_size %s", newSize))
+		} else {
+			return fmt.Errorf("could not find request_body configuration in Caddy config")
+		}
+	}
+
+	// Write updated config
+	if err := os.WriteFile(configFile, []byte(configStr), 0644); err != nil {
+		return fmt.Errorf("failed to write Caddy config: %v", err)
+	}
+
+	if sm.Config.Verbose {
+		fmt.Printf("Updated Caddy configuration: %s\n", configFile)
+	}
+
+	return nil
 }
 
 

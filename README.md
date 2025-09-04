@@ -9,6 +9,9 @@ A powerful CLI tool for managing PHP and WordPress sites with Caddy web server. 
 - ✅ **WordPress Support**: Automatic database creation and wp-config.php generation
 - ✅ **Caddy Integration**: Generates optimized Caddy configurations
 - ✅ **Site Management**: Enable, disable, list, and delete sites
+- ✅ **Site Modification**: Add/remove basic auth and change upload limits
+- ✅ **Basic Authentication**: Secure paths with username/password protection
+- ✅ **Upload Size Management**: Modify PHP and Caddy upload limits dynamically
 - ✅ **Dry Run Mode**: Test commands without making changes
 - ✅ **Configurable**: Support for custom PHP versions, upload limits, and paths
 - ✅ **Security Focused**: Proper file permissions and security headers
@@ -84,6 +87,27 @@ caddy-site-manager delete mysite.com
 
 # Hard delete (removes everything including files and database)
 caddy-site-manager delete mysite.com --hard --force
+```
+
+### Site Modification
+
+```bash
+# Add basic authentication to a path
+caddy-site-manager auth-add example.com "/admin" -u admin -p secret123
+caddy-site-manager auth-add blog.com "/wp-admin" -u wordpress -p mypassword
+
+# Remove basic authentication from a path
+caddy-site-manager auth-remove example.com "/admin"
+caddy-site-manager auth-remove blog.com "/wp-admin"
+
+# Change maximum upload size
+caddy-site-manager max-upload example.com 2GB
+caddy-site-manager max-upload blog.com 512M
+caddy-site-manager max-upload bigsite.com 1G
+
+# Test modifications safely with dry-run
+caddy-site-manager auth-add test.com "/secure" -u user -p pass --dry-run --verbose
+caddy-site-manager max-upload test.com 2GB --dry-run --verbose
 ```
 
 ### Global Options

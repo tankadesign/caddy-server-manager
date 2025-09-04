@@ -199,6 +199,19 @@ caddy-site-manager delete mysite.com
 caddy-site-manager delete mysite.com --hard --force
 ```
 
+### Site modification:
+
+```bash
+# Add basic authentication
+caddy-site-manager auth-add example.com "/admin" -u admin -p secret123
+
+# Remove basic authentication
+caddy-site-manager auth-remove example.com "/admin"
+
+# Change upload limits
+caddy-site-manager max-upload example.com 2GB
+```
+
 ## Binary Sizes
 
 Typical binary sizes with optimization flags:
