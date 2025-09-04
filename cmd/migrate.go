@@ -387,12 +387,24 @@ func extractDomain(configFile, content string) string {
 }
 
 func extractDocumentRoot(content, domain string) string {
-	// Look for root directive
-	re := regexp.MustCompile(`root\s+([^\s\n]+)`)
+	// Look for root directive with * wildcard pattern: root * /path/to/site
+	re := regexp.MustCompile(`root\s+\*\s+([^\s\n]+)`)
 	matches := re.FindStringSubmatch(content)
 	if len(matches) > 1 {
 		return strings.Trim(matches[1], `"'`)
 	}
+	
+	// Fallback: Look for simple root directive: root /path/to/site
+	re = regexp.MustCompile(`root\s+([^\s\n*]+)`)
+	matches = re.FindStringSubmatch(content)
+	if len(matches) > 1 {
+		path := strings.Trim(matches[1], `"'`)
+		// Skip if it's just the wildcard
+		if path != "*" {
+			return path
+		}
+	}
+	
 	return ""
 }
 
@@ -565,16 +577,51 @@ func extractBasicAuthFromConfig(configFilePath string, siteID int) ([]database.B
 		}
 	}
 
-	// Pattern 2: Direct basic_auth blocks within site config
-	directPattern := regexp.MustCompile(`basic_auth\s*\{([^}]+)\}`)
-	directMatches := directPattern.FindAllStringSubmatch(contentStr, -1)
+	// Pattern 2: Direct basic_auth blocks within site config (not inside route blocks)
+	// Look for basic_auth that is not preceded by "route" on the same logical level
+	lines := strings.Split(contentStr, "\n")
+	inRoute := false
+	routeBraceCount := 0
 	
-	for _, match := range directMatches {
-		if len(match) >= 2 {
-			authBlock := match[1]
-			// For direct basic auth, assume it applies to root path
-			auths := parseBasicAuthBlock(authBlock, "/", siteID)
-			basicAuths = append(basicAuths, auths...)
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		
+		// Track if we're inside a route block
+		if strings.HasPrefix(trimmedLine, "route ") {
+			inRoute = true
+			routeBraceCount = 0
+		}
+		
+		// Count braces to track nesting within route
+		if inRoute {
+			routeBraceCount += strings.Count(line, "{")
+			routeBraceCount -= strings.Count(line, "}")
+			
+			// If we've closed all braces, we're out of the route
+			if routeBraceCount <= 0 {
+				inRoute = false
+			}
+		}
+		
+		// Only process basic_auth blocks that are NOT inside route blocks
+		if !inRoute && strings.Contains(trimmedLine, "basic_auth {") {
+			// Extract the basic_auth block content
+			authContent := ""
+			braceCount := 1
+			j := i + 1
+			
+			for j < len(lines) && braceCount > 0 {
+				authContent += lines[j] + "\n"
+				braceCount += strings.Count(lines[j], "{")
+				braceCount -= strings.Count(lines[j], "}")
+				j++
+			}
+			
+			if braceCount == 0 {
+				// For direct basic auth, assume it applies to root path
+				auths := parseBasicAuthBlock(authContent, "/", siteID)
+				basicAuths = append(basicAuths, auths...)
+			}
 		}
 	}
 

@@ -91,6 +91,42 @@ Examples:
 	},
 }
 
+var authListCmd = &cobra.Command{
+	Use:   "auth-list [domain]",
+	Short: "List basic authentication configurations for a site",
+	Long: `List all basic authentication paths and users configured for a site.
+
+Examples:
+  caddy-site-manager auth-list example.com
+  caddy-site-manager auth-list blog.com`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		domain := args[0]
+
+		// Create config
+		cfg := config.NewCaddyConfig(viper.GetString("caddy-config"))
+		cfg.DryRun = viper.GetBool("dry-run")
+		cfg.Verbose = viper.GetBool("verbose")
+		
+		// Set database path if provided
+		if dbPath := viper.GetString("database"); dbPath != "" {
+			cfg.DatabasePath = dbPath
+		}
+
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+
+		// Create SQLite site manager
+		sm, err := site.NewManager(cfg)
+		if err != nil {
+			return err
+		}
+
+		return sm.ListBasicAuth(domain)
+	},
+}
+
 var maxUploadCmd = &cobra.Command{
 	Use:   "max-upload [domain] [size]",
 	Short: "Change maximum upload size for a site",
@@ -136,6 +172,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(authAddCmd)
 	rootCmd.AddCommand(authRemoveCmd)
+	rootCmd.AddCommand(authListCmd)
 	rootCmd.AddCommand(maxUploadCmd)
 
 	// Add flags for auth-add command

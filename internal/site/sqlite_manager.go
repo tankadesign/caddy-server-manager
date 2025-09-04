@@ -434,6 +434,37 @@ func (sm *SQLiteSiteManager) RemoveBasicAuth(domain, path string) error {
 	return nil
 }
 
+// ListBasicAuth lists all basic authentication configurations for a site
+func (sm *SQLiteSiteManager) ListBasicAuth(domain string) error {
+	// Get site with auth from database
+	siteWithAuth, err := sm.DB.GetSiteWithAuth(domain)
+	if err != nil {
+		return fmt.Errorf("site not found: %v", err)
+	}
+
+	if len(siteWithAuth.BasicAuths) == 0 {
+		fmt.Printf("No basic authentication configured for %s\n", domain)
+		return nil
+	}
+
+	fmt.Printf("Basic authentication for %s:\n", domain)
+	
+	// Group auths by path for cleaner output
+	pathAuths := make(map[string][]string)
+	for _, auth := range siteWithAuth.BasicAuths {
+		pathAuths[auth.Path] = append(pathAuths[auth.Path], auth.Username)
+	}
+
+	// Display each path and its users
+	for path, usernames := range pathAuths {
+		for _, username := range usernames {
+			fmt.Printf("%s - %s\n", path, username)
+		}
+	}
+
+	return nil
+}
+
 // ModifyMaxUpload changes the maximum upload size using SQLite database
 func (sm *SQLiteSiteManager) ModifyMaxUpload(domain, newSize string) error {
 	if sm.Config.Verbose {

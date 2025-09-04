@@ -26,5 +26,6 @@ type Manager interface {
 	ListSites() error
 	AddBasicAuth(domain, path, username, password string) error
 	RemoveBasicAuth(domain, path string) error
+	ListBasicAuth(domain string) error
 	ModifyMaxUpload(domain, newSize string) error
 }

@@ -601,7 +601,7 @@ func (sm *SQLiteSiteManager) regenerateCaddyConfig(siteID int, configFile string
 	return nil
 }
 
-// addBasicAuthToConfig adds basic auth blocks to the Caddy configuration
+// addBasicAuthToConfig adds basic auth blocks to the Caddy configuration using route syntax
 func (sm *SQLiteSiteManager) addBasicAuthToConfig(config string, auths []database.BasicAuth) string {
 	// Group auths by path
 	authsByPath := make(map[string][]database.BasicAuth)
@@ -609,42 +609,47 @@ func (sm *SQLiteSiteManager) addBasicAuthToConfig(config string, auths []databas
 		authsByPath[auth.Path] = append(authsByPath[auth.Path], auth)
 	}
 
-	// Find the insertion point (before PHP processing)
-	phpIndex := strings.Index(config, "php_fastcgi")
-	if phpIndex == -1 {
-		// Fallback: insert before file_server
-		phpIndex = strings.Index(config, "file_server")
+	// Find the insertion point (before try_files or PHP processing)
+	insertIndex := strings.Index(config, "try_files")
+	if insertIndex == -1 {
+		insertIndex = strings.Index(config, "php_fastcgi")
 	}
-	if phpIndex == -1 {
+	if insertIndex == -1 {
+		// Fallback: insert before file_server
+		insertIndex = strings.Index(config, "file_server")
+	}
+	if insertIndex == -1 {
 		// Last resort: insert before the closing brace
-		phpIndex = strings.LastIndex(config, "}")
+		insertIndex = strings.LastIndex(config, "}")
 	}
 
 	var authBlocks strings.Builder
 
+	// Generate route blocks for each path
 	for path, pathAuths := range authsByPath {
-		sanitizedPath := sm.sanitizeName(path)
+		// Use proper path pattern for routes
+		pathPattern := path
+		if !strings.HasSuffix(pathPattern, "*") {
+			pathPattern += "*"
+		}
 		
-		// Create matcher for this path
 		authBlocks.WriteString(fmt.Sprintf(`
-	# Basic auth for %s
-	@auth_%s {
-		path %s*
-	}
-	basic_auth @auth_%s {`, path, sanitizedPath, path, sanitizedPath))
+	route %s {
+		basic_auth {`, pathPattern))
 
 		// Add all users for this path
 		for _, auth := range pathAuths {
 			authBlocks.WriteString(fmt.Sprintf(`
-		%s %s`, auth.Username, auth.Password))
+			%s %s`, auth.Username, auth.Password))
 		}
 
 		authBlocks.WriteString(`
+		}
 	}`)
 	}
 
-	// Insert auth blocks before PHP configuration
-	return config[:phpIndex] + authBlocks.String() + "\n\n\t" + config[phpIndex:]
+	// Insert auth blocks before the identified insertion point
+	return config[:insertIndex] + authBlocks.String() + "\n\t" + config[insertIndex:]
 }
 
 // validateAndReloadCaddy validates and reloads the Caddy configuration
