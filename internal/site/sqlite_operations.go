@@ -161,34 +161,6 @@ www.{{.Domain}} {
 		max_size {{.MaxUpload}}
 	}
 
-	# Security: Block access to sensitive WordPress files and directories
-	@forbidden {
-		path *.sql
-		path /wp-config.php
-		path /wp-config-sample.php
-		path /wp-content/debug.log
-		path /.htaccess
-		path /wp-content/uploads/*.php
-		path /wp-content/uploads/*.phtml
-		path /wp-admin/includes/*
-		path /wp-includes/*.php
-		path /readme.html
-		path /license.txt
-		path *.log
-		path *.ini
-		path *.conf
-		path /xmlrpc.php
-		path /wp-trackback.php
-	}
-	respond @forbidden 403
-
-	# Security: Block access to hidden files and directories
-	@hidden {
-		path /.*
-		not path /.well-known/*
-	}
-	respond @hidden 403
-
 	# PHP processing using custom PHP pool
 	php_fastcgi unix//run/php/php{{.PHPVersion}}-fpm-{{.PoolName}}.sock {
 		index index.php
@@ -207,16 +179,6 @@ www.{{.Domain}} {
 		X-Content-Type-Options nosniff
 		X-XSS-Protection "1; mode=block"
 		Referrer-Policy strict-origin-when-cross-origin
-	}
-
-	# Handle static files with appropriate caching
-	@static {
-		file
-		path *.css *.js *.ico *.png *.jpg *.jpeg *.gif *.svg *.woff *.woff2 *.ttf *.eot
-	}
-	handle @static {
-		header Cache-Control "public, max-age=31536000"
-		file_server
 	}
 
 	# File server for other static files
