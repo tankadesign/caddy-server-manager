@@ -22,16 +22,16 @@ The Go compiler supports cross-compilation to build binaries for different opera
 
 ```bash
 # For Ubuntu/Debian servers
-GOOS=linux GOARCH=amd64 go build -o caddy-site-manager-linux-amd64
+GOOS=linux GOARCH=amd64 go build -o build/caddy-site-manager-linux-amd64
 
 # For production servers (optimized build)
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o caddy-site-manager-linux-amd64
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o build/caddy-site-manager-linux-amd64
 ```
 
 #### Linux ARM64 (For ARM-based servers)
 
 ```bash
-GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o caddy-site-manager-linux-arm64
+GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o build/caddy-site-manager-linux-arm64
 ```
 
 #### Build Flags Explanation
@@ -44,7 +44,7 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o caddy-site-manager-linux-ar
 1. **Build for your target server:**
 
    ```bash
-   GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o caddy-site-manager-linux
+   GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o build/caddy-site-manager-linux
    ```
 
 2. **Copy to server:**
