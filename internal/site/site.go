@@ -390,6 +390,9 @@ php_admin_value[opcache.revalidate_freq] = 60
 		max_size {{.MaxUpload}}
 	}
 
+	# Enable clean URLs for PHP files (removes .php extension requirement)
+	try_files {path} {path}.php
+
 	# PHP processing using custom PHP pool
 	php_fastcgi unix//run/php/php{{.PHPVersion}}-fpm-{{.PoolName}}.sock {
 		index index.php
