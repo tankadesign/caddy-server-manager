@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/falcon/caddy-site-manager/internal/config"
-	"github.com/falcon/caddy-site-manager/internal/site"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tankadesign/caddy-site-manager/internal/config"
+	"github.com/tankadesign/caddy-site-manager/internal/site"
 )
 
 // Auth commands
@@ -34,13 +34,18 @@ Examples:
 		cfg := config.NewCaddyConfig(viper.GetString("caddy-config"))
 		cfg.DryRun = viper.GetBool("dry-run")
 		cfg.Verbose = viper.GetBool("verbose")
+		
+		// Set database path if provided
+		if dbPath := viper.GetString("database"); dbPath != "" {
+			cfg.DatabasePath = dbPath
+		}
 
 		if err := cfg.Validate(); err != nil {
 			return err
 		}
 
-		// Create site manager
-		sm, err := site.NewCaddySiteManager(cfg)
+		// Create SQLite site manager
+		sm, err := site.NewManager(cfg)
 		if err != nil {
 			return err
 		}
@@ -66,13 +71,18 @@ Examples:
 		cfg := config.NewCaddyConfig(viper.GetString("caddy-config"))
 		cfg.DryRun = viper.GetBool("dry-run")
 		cfg.Verbose = viper.GetBool("verbose")
+		
+		// Set database path if provided
+		if dbPath := viper.GetString("database"); dbPath != "" {
+			cfg.DatabasePath = dbPath
+		}
 
 		if err := cfg.Validate(); err != nil {
 			return err
 		}
 
-		// Create site manager
-		sm, err := site.NewCaddySiteManager(cfg)
+		// Create SQLite site manager
+		sm, err := site.NewManager(cfg)
 		if err != nil {
 			return err
 		}
@@ -103,13 +113,18 @@ Examples:
 		cfg := config.NewCaddyConfig(viper.GetString("caddy-config"))
 		cfg.DryRun = viper.GetBool("dry-run")
 		cfg.Verbose = viper.GetBool("verbose")
+		
+		// Set database path if provided
+		if dbPath := viper.GetString("database"); dbPath != "" {
+			cfg.DatabasePath = dbPath
+		}
 
 		if err := cfg.Validate(); err != nil {
 			return err
 		}
 
-		// Create site manager
-		sm, err := site.NewCaddySiteManager(cfg)
+		// Create SQLite site manager
+		sm, err := site.NewManager(cfg)
 		if err != nil {
 			return err
 		}

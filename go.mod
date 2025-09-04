@@ -1,8 +1,9 @@
-module github.com/falcon/caddy-site-manager
+module github.com/tankadesign/caddy-site-manager
 
 go 1.21
 
 require (
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 )

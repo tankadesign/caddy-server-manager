@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"text/template"
 
-	"github.com/falcon/caddy-site-manager/internal/config"
+	"github.com/tankadesign/caddy-site-manager/internal/config"
 )
 
 // SiteCreateOptions represents options for creating a site

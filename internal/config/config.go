@@ -14,6 +14,7 @@ type CaddyConfig struct {
 	CaddyFile      string
 	WebRoot        string
 	PHPVersion     string
+	DatabasePath   string
 	DryRun         bool
 	Verbose        bool
 }
@@ -27,6 +28,7 @@ func NewCaddyConfig(configDir string) *CaddyConfig {
 		CaddyFile:      filepath.Join(configDir, "Caddyfile"),
 		WebRoot:        "/var/www",
 		PHPVersion:     "8.2",
+		DatabasePath:   filepath.Join(configDir, "caddy-sites.db"),
 		DryRun:         false,
 		Verbose:        false,
 	}
@@ -59,6 +61,7 @@ func (c *CaddyConfig) PrintConfig() {
 		fmt.Printf("Caddyfile: %s\n", c.CaddyFile)
 		fmt.Printf("Web Root: %s\n", c.WebRoot)
 		fmt.Printf("PHP Version: %s\n", c.PHPVersion)
+		fmt.Printf("Database Path: %s\n", c.DatabasePath)
 		fmt.Printf("Dry Run: %t\n", c.DryRun)
 		fmt.Printf("Verbose: %t\n", c.Verbose)
 	}

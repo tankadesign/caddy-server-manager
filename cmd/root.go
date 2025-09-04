@@ -31,11 +31,13 @@ func init() {
 	rootCmd.PersistentFlags().StringP("caddy-config", "c", "/etc/caddy", "Path to Caddy configuration directory")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolP("dry-run", "n", false, "Show what would be done without executing")
+	rootCmd.PersistentFlags().String("database", "", "Path to SQLite database file (default: caddy-config-dir/caddy-sites.db)")
 
 	// Bind flags to viper
 	viper.BindPFlag("caddy-config", rootCmd.PersistentFlags().Lookup("caddy-config"))
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("dry-run", rootCmd.PersistentFlags().Lookup("dry-run"))
+	viper.BindPFlag("database", rootCmd.PersistentFlags().Lookup("database"))
 }
 
 // initConfig reads in config file and ENV variables if set.
