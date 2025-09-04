@@ -383,7 +383,7 @@ func (sm *SQLiteSiteManager) createSiteDirectory(site *database.Site) error {
 		fmt.Println("Creating site directory...")
 	}
 
-	if err := os.MkdirAll(site.DocumentRoot, 0755); err != nil {
+	if err := os.MkdirAll(site.DocumentRoot, 0775); err != nil {
 		return fmt.Errorf("failed to create site directory: %v", err)
 	}
 
