@@ -184,12 +184,6 @@ define( 'WP_AUTO_UPDATE_CORE', 'minor' ); // Only minor updates
 // Security headers and SSL
 define( 'FORCE_SSL_ADMIN', true );
 
-// Hide WordPress version
-remove_action( 'wp_head', 'wp_generator' );
-
-// Disable XML-RPC (uncomment if not needed)
-// add_filter( 'xmlrpc_enabled', '__return_false' );
-
 // ** Performance Optimizations ** //
 
 // Increase memory limit
