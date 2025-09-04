@@ -330,7 +330,7 @@ func (sm *SQLiteSiteManager) createPHPFPMPool(site *database.Site) error {
 	}
 
 	// Execute chown command to set ownership
-	if err := exec.Command("chown", "www-data:www-data", "/var/log/php").Run(); err != nil {
+	if err := exec.Command("chown", "ubuntu:www-data", "/var/log/php").Run(); err != nil {
 		return fmt.Errorf("failed to set log directory ownership: %v", err)
 	}
 
@@ -481,7 +481,7 @@ func (sm *SQLiteSiteManager) setPermissions(site *database.Site) error {
 	}
 
 	// Set ownership
-	if err := exec.Command("chown", "-R", "www-data:www-data", site.DocumentRoot).Run(); err != nil {
+	if err := exec.Command("chown", "-R", "ubuntu:www-data", site.DocumentRoot).Run(); err != nil {
 		return fmt.Errorf("failed to set ownership: %v", err)
 	}
 
