@@ -177,9 +177,6 @@ define( 'DISALLOW_FILE_EDIT', true );
 // Disable plugin and theme installation/deletion
 define( 'DISALLOW_FILE_MODS', false ); // Set to true for production
 
-// Limit post revisions
-define( 'WP_POST_REVISIONS', 3 );
-
 // Disable WordPress auto-updates for better control
 define( 'AUTOMATIC_UPDATER_DISABLED', false );
 define( 'WP_AUTO_UPDATE_CORE', 'minor' ); // Only minor updates
