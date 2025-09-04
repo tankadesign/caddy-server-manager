@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/falcon/caddy-site-manager/cmd"
+	"github.com/tankadesign/caddy-site-manager/cmd"
 )
 
 func main() {

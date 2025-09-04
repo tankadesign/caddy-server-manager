@@ -59,3 +59,7 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o caddy-site-manager-linux
 ```
 
 See BUILD.md for detailed production deployment instructions.
+
+## Testing
+
+A mock server directory structure might be included in `mockup-server` for testing config reading and writing. When running the CLI tool for testing purposes, you can point to this mock server structure to ensure that the configuration files are being generated and modified correctly without affecting a live server environment.
