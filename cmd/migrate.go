@@ -22,11 +22,11 @@ This is useful when transitioning from the old file-based configuration system t
 SQLite database system.
 
 The command will:
-- Scan all .conf files in sites-available directory
+- Scan all .conf files in available-sites directory
 - Parse domain names and configuration details
 - Detect WordPress sites and PHP versions
 - Import all configurations into the SQLite database
-- Preserve enabled/disabled status based on symlinks in sites-enabled
+- Preserve enabled/disabled status based on symlinks in enabled-sites
 
 Examples:
   caddy-site-manager migrate
@@ -189,17 +189,17 @@ func createDatabaseBackup(dbPath string) error {
 }
 
 func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
-	sitesDir := filepath.Join(cfg.ConfigDir, "sites-available")
-	enabledDir := filepath.Join(cfg.ConfigDir, "sites-enabled")
+	sitesDir := filepath.Join(cfg.ConfigDir, "available-sites")
+	enabledDir := filepath.Join(cfg.ConfigDir, "enabled-sites")
 
 	if cfg.Verbose {
-		fmt.Printf("Scanning sites-available: %s\n", sitesDir)
-		fmt.Printf("Checking sites-enabled: %s\n", enabledDir)
+		fmt.Printf("Scanning available-sites: %s\n", sitesDir)
+		fmt.Printf("Checking enabled-sites: %s\n", enabledDir)
 	}
 
 	// Check if directories exist
 	if _, err := os.Stat(sitesDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("sites-available directory not found: %s", sitesDir)
+		return nil, fmt.Errorf("available-sites directory not found: %s", sitesDir)
 	}
 
 	// Get all .conf files
