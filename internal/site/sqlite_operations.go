@@ -170,16 +170,8 @@ www.{{.Domain}} {
 		path /.htaccess
 		path /wp-content/uploads/*.php
 		path /wp-content/uploads/*.phtml
-		path /wp-content/uploads/*.php5
-		path /wp-content/uploads/*.pl
-		path /wp-content/uploads/*.py
-		path /wp-content/uploads/*.jsp
-		path /wp-content/uploads/*.asp
-		path /wp-content/uploads/*.sh
-		path /wp-content/uploads/*.cgi
 		path /wp-admin/includes/*
 		path /wp-includes/*.php
-		path /wp-includes/js/tinymce/langs/*.php
 		path /readme.html
 		path /license.txt
 		path *.log
@@ -197,25 +189,9 @@ www.{{.Domain}} {
 	}
 	respond @hidden 403
 
-	# Security: Block common exploit attempts
-	@exploits {
-		query *concat*
-		query *union*
-		query *base64_decode*
-		query *script*
-		query *eval*
-		path */proc/self/environ*
-		path */phpinfo*
-		path */whoami*
-		path */etc/passwd*
-	}
-	respond @exploits 403
-
 	# PHP processing using custom PHP pool
 	php_fastcgi unix//run/php/php{{.PHPVersion}}-fpm-{{.PoolName}}.sock {
 		index index.php
-		# Security: Prevent execution of PHP in uploads directory
-		except /wp-content/uploads/*
 	}
 
 	# WordPress pretty permalinks
@@ -231,10 +207,6 @@ www.{{.Domain}} {
 		X-Content-Type-Options nosniff
 		X-XSS-Protection "1; mode=block"
 		Referrer-Policy strict-origin-when-cross-origin
-		Permissions-Policy "geolocation=(), microphone=(), camera=()"
-		
-		# Content Security Policy (basic - adjust as needed)
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self'"
 	}
 
 	# Handle static files with appropriate caching
