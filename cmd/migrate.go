@@ -22,7 +22,7 @@ This is useful when transitioning from the old file-based configuration system t
 SQLite database system.
 
 The command will:
-- Scan all .conf files in available-sites directory
+- Scan all configuration files in available-sites directory (files without extensions)
 - Parse domain names and configuration details
 - Detect WordPress sites and PHP versions
 - Import all configurations into the SQLite database
@@ -202,10 +202,37 @@ func scanCaddyConfigs(cfg *config.CaddyConfig) ([]database.Site, error) {
 		return nil, fmt.Errorf("available-sites directory not found: %s", sitesDir)
 	}
 
-	// Get all .conf files
-	files, err := filepath.Glob(filepath.Join(sitesDir, "*.conf"))
+	// Get all configuration files (files without extensions, which is standard for Caddy)
+	var files []string
+	
+	entries, err := os.ReadDir(sitesDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan config files: %v", err)
+		return nil, fmt.Errorf("failed to read sites directory: %v", err)
+	}
+	
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			fileName := entry.Name()
+			filePath := filepath.Join(sitesDir, fileName)
+			
+			// Skip hidden files and common non-config files
+			if strings.HasPrefix(fileName, ".") || 
+			   fileName == "README" || fileName == "README.md" ||
+			   strings.HasSuffix(fileName, ".txt") ||
+			   strings.HasSuffix(fileName, ".log") ||
+			   strings.HasSuffix(fileName, ".conf") { // Skip .conf files if any exist
+				continue
+			}
+			
+			// Check if file contains Caddy configuration syntax
+			if isValidCaddyConfig(filePath) {
+				files = append(files, filePath)
+			}
+		}
+	}
+
+	if cfg.Verbose {
+		fmt.Printf("Found %d configuration file(s) to examine\n", len(files))
 	}
 
 	var sites []database.Site
@@ -315,13 +342,10 @@ func parseCaddyConfig(configFile, enabledDir string, cfg *config.CaddyConfig) (*
 }
 
 func extractDomain(configFile, content string) string {
-	// First try to extract from filename
+	// First try to extract from filename (standard Caddy approach)
 	filename := filepath.Base(configFile)
-	if strings.HasSuffix(filename, ".conf") {
-		domain := strings.TrimSuffix(filename, ".conf")
-		if isValidDomain(domain) {
-			return domain
-		}
+	if isValidDomain(filename) {
+		return filename
 	}
 
 	// Try to extract from config content (look for domain at start of line)
@@ -459,4 +483,39 @@ func generatePoolName(domain string) string {
 	poolName := strings.ReplaceAll(domain, ".", "_")
 	poolName = strings.ReplaceAll(poolName, "-", "_")
 	return poolName
+}
+
+// isValidCaddyConfig checks if a file contains valid Caddy configuration syntax
+func isValidCaddyConfig(filePath string) bool {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return false
+	}
+	
+	contentStr := string(content)
+	
+	// Check for Caddy-specific patterns
+	caddyPatterns := []string{
+		"{",          // Caddy uses curly braces for blocks
+		"root *",     // Common Caddy directive
+		"php_fastcgi", // PHP processing
+		"file_server", // Static file serving
+		"encode gzip", // Compression
+		"try_files",   // URL rewriting
+		"redir",       // Redirects
+		"route",       // Route handling
+		"handle",      // Request handling
+	}
+	
+	contentLower := strings.ToLower(contentStr)
+	matchCount := 0
+	
+	for _, pattern := range caddyPatterns {
+		if strings.Contains(contentLower, strings.ToLower(pattern)) {
+			matchCount++
+		}
+	}
+	
+	// If we find at least 2 Caddy-specific patterns, it's likely a Caddy config
+	return matchCount >= 2
 }
