@@ -1,12 +1,12 @@
 # Caddy Site Manager
 
-A powerful CLI tool for managing PHP and WordPress sites with Caddy web server. Automates site creation, configuration, and management with custom PHP-FPM pools for optimal performance and isolation.
+A 100% vibe coded CLI tool written in Go for managing PHP and WordPress sites with Caddy web server. Automates basic site creation, configuration, and management with custom PHP-FPM pools for optimal performance and isolation. It’s probably not very good but it does what I want and that’s good enough for me.
 
 ## Features
 
 - ✅ **Automated Site Creation**: Create PHP and WordPress sites with one command
 - ✅ **Custom PHP-FPM Pools**: Each site gets its own isolated PHP-FPM pool
-- ✅ **WordPress Support**: Automatic database creation and wp-config.php generation
+- ✅ **WordPress Support**: Latest WordPress auto-download with security hardening
 - ✅ **Caddy Integration**: Generates optimized Caddy configurations
 - ✅ **Site Management**: Enable, disable, list, and delete sites
 - ✅ **Site Modification**: Add/remove basic auth and change upload limits
@@ -14,7 +14,6 @@ A powerful CLI tool for managing PHP and WordPress sites with Caddy web server. 
 - ✅ **Upload Size Management**: Modify PHP and Caddy upload limits dynamically
 - ✅ **Dry Run Mode**: Test commands without making changes
 - ✅ **Configurable**: Support for custom PHP versions, upload limits, and paths
-- ✅ **Security Focused**: Proper file permissions and security headers
 
 ## Installation
 
@@ -22,13 +21,9 @@ A powerful CLI tool for managing PHP and WordPress sites with Caddy web server. 
 
 ```bash
 git clone <repository-url>
-cd caddy-site-manager-golang
+cd caddy-site-manager
 go build -o build/caddy-site-manager
 ```
-
-### Pre-built Binaries
-
-Download the appropriate binary for your platform from the releases page.
 
 ## Quick Start
 
@@ -145,13 +140,11 @@ The tool expects this directory structure:
 
 ```
 /etc/caddy/
-├── available-sites/     # Site configurations
-├── enabled-sites/       # Symlinks to enabled sites
+├── available-sites/    # Site configurations
+├── enabled-sites/      # Symlinks to enabled sites
 └── Caddyfile           # Main Caddy config
 
-/var/www/
-├── sites/              # Site document roots
-└── sites/wordpress-template/  # WordPress template (for WP sites)
+/var/www/sites/         # Individual site directories
 ```
 
 ## Generated Configurations
@@ -188,49 +181,48 @@ Generates secure Caddy configurations with:
 - Automatic HTTPS
 - Request body limits matching PHP settings
 
-Example for WordPress:
-
-```caddy
-blog.example.com {
-    root * /var/www/sites/blog.example.com
-    encode gzip
-
-    request_body {
-        max_size 256M
-    }
-
-    php_fastcgi unix//run/php/php8.3-fpm-blog_example_com.sock {
-        index index.php
-    }
-
-    try_files {path} {path}/ /index.php?{query}
-
-    @forbidden {
-        path *.sql
-        path /wp-config.php
-        path /wp-content/debug.log
-    }
-    respond @forbidden 403
-
-    header {
-        -Server
-        X-Content-Type-Options nosniff
-        X-XSS-Protection "1; mode=block"
-    }
-
-    file_server
-}
-```
-
 ## WordPress Features
 
 When creating WordPress sites (`--wordpress` flag):
 
-- 🔐 **Automatic Database Creation**: Creates MySQL database and user
-- 🔑 **Secure wp-config.php**: Generates configuration with WordPress salts
-- 📁 **Template System**: Copies from WordPress template directory
-- 🛡️ **Security**: Proper file permissions and security headers
+- � **Latest WordPress**: Automatically downloads and installs the latest WordPress version
+- 🔒 **Security Hardening**: Implements WordPress security best practices out of the box
+- 🔑 **Secure wp-config.php**: Advanced configuration with security keys, salts, and hardening
+- 🛡️ **Additional Security**: Caddy-native security rules, headers, and file protection
+- �️ **Database Setup**: Auto-creates MySQL database and user with proper permissions
 - 📊 **Database Credentials**: Displays credentials for WordPress installation
+- 🏗️ **No Template Required**: No need for pre-existing WordPress templates or directories
+
+### Security Features Included:
+
+- Disables file editing in WordPress admin
+- Implements proper file permissions and ownership
+- Configures Caddy-native security directives and headers
+- Protects sensitive files (wp-config.php, WordPress core files, etc.)
+- Generates cryptographically secure authentication keys and salts
+- Creates secure robots.txt for SEO
+- Configures proper PHP security settings
+- Implements WordPress-specific Caddy rules for protection
+
+## Architecture
+
+The CLI tool is built with a modular architecture:
+
+```
+cmd/               # CLI commands (create, enable, disable, etc.)
+internal/
+├── config/        # Configuration management
+├── database/      # SQLite database operations and models
+├── site/          # Site management (main business logic)
+└── wordpress/     # WordPress-specific operations (NEW)
+```
+
+### Key Components
+
+- **Site Manager**: Handles all site operations (PHP and WordPress)
+- **WordPress Module**: Dedicated module for WordPress download, extraction, and security configuration
+- **Database Layer**: SQLite-based storage for site configurations and metadata
+- **Configuration System**: YAML-based configuration with sensible defaults
 
 ## Server Requirements
 

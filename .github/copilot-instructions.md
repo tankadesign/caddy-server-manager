@@ -20,6 +20,8 @@ This is a completed Go CLI application for managing Caddy PHP/WordPress sites. T
 - Custom PHP-FPM pool generation
 - Caddy configuration generation
 - Database management for WordPress
+- **Built-in WordPress Installation**: Latest WordPress auto-download with security hardening
+- **Security Best Practices**: WordPress sites include comprehensive security configuration
 - Dry-run mode for safe testing
 - Verbose output and comprehensive error handling
 - Configuration file support
@@ -61,5 +63,7 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o caddy-site-manager-linux
 See BUILD.md for detailed production deployment instructions.
 
 ## Testing
+
+The CLI tool now includes a built-in WordPress installation system that downloads the latest WordPress version and configures it with security best practices. No external template directories are required.
 
 A mock server directory structure might be included in `mockup-server` for testing config reading and writing. When running the CLI tool for testing purposes, you can point to this mock server structure to ensure that the configuration files are being generated and modified correctly without affecting a live server environment.

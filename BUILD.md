@@ -108,23 +108,6 @@ echo "Caddy Site Manager installed successfully!"
 echo "Run: caddy-site-manager --help"
 ```
 
-### WordPress Template Setup
-
-For WordPress sites, create a template directory:
-
-```bash
-# Download WordPress
-cd /var/www/sites
-sudo wget https://wordpress.org/latest.tar.gz
-sudo tar -xzf latest.tar.gz
-sudo mv wordpress wordpress-template
-sudo rm latest.tar.gz
-
-# Set permissions
-sudo chown -R www-data:www-data wordpress-template
-sudo chmod -R 755 wordpress-template
-```
-
 ## Configuration
 
 ### Default Configuration File
@@ -138,6 +121,8 @@ web_root: '/var/www'
 php_version: '8.3'
 max_upload: '256M'
 ```
+
+**Note:** WordPress sites no longer require a template directory. The latest WordPress version is automatically downloaded and configured with security best practices when creating WordPress sites.
 
 ### System Integration
 

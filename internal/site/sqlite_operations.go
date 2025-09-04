@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/tankadesign/caddy-site-manager/internal/database"
+	"github.com/tankadesign/caddy-site-manager/internal/wordpress"
 )
 
 // Utility functions
@@ -162,36 +161,93 @@ www.{{.Domain}} {
 		max_size {{.MaxUpload}}
 	}
 
+	# Security: Block access to sensitive WordPress files and directories
+	@forbidden {
+		path *.sql
+		path /wp-config.php
+		path /wp-config-sample.php
+		path /wp-content/debug.log
+		path /.htaccess
+		path /wp-content/uploads/*.php
+		path /wp-content/uploads/*.phtml
+		path /wp-content/uploads/*.php5
+		path /wp-content/uploads/*.pl
+		path /wp-content/uploads/*.py
+		path /wp-content/uploads/*.jsp
+		path /wp-content/uploads/*.asp
+		path /wp-content/uploads/*.sh
+		path /wp-content/uploads/*.cgi
+		path /wp-admin/includes/*
+		path /wp-includes/*.php
+		path /wp-includes/js/tinymce/langs/*.php
+		path /readme.html
+		path /license.txt
+		path *.log
+		path *.ini
+		path *.conf
+		path /xmlrpc.php
+		path /wp-trackback.php
+	}
+	respond @forbidden 403
+
+	# Security: Block access to hidden files and directories
+	@hidden {
+		path /.*
+		not path /.well-known/*
+	}
+	respond @hidden 403
+
+	# Security: Block common exploit attempts
+	@exploits {
+		query *concat*
+		query *union*
+		query *base64_decode*
+		query *script*
+		query *eval*
+		path */proc/self/environ*
+		path */phpinfo*
+		path */whoami*
+		path */etc/passwd*
+	}
+	respond @exploits 403
+
 	# PHP processing using custom PHP pool
 	php_fastcgi unix//run/php/php{{.PHPVersion}}-fpm-{{.PoolName}}.sock {
 		index index.php
+		# Security: Prevent execution of PHP in uploads directory
+		except /wp-content/uploads/*
 	}
 
 	# WordPress pretty permalinks
 	try_files {path} {path}/ /index.php?{query}
 
-	# Deny access to sensitive WordPress files
-	@forbidden {
-		path *.sql
-		path /wp-config.php
-		path /wp-content/debug.log
-		path /.htaccess
-		path /wp-content/uploads/*.php
-	}
-	respond @forbidden 403
-
 	# Security headers
 	header {
 		# Remove server info
 		-Server
+		-X-Powered-By
 		
 		# Security headers
 		X-Content-Type-Options nosniff
 		X-XSS-Protection "1; mode=block"
 		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		
+		# Content Security Policy (basic - adjust as needed)
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self'"
 	}
 
-	# File server for static files
+	# Handle static files with appropriate caching
+	@static {
+		file
+		path *.css *.js *.ico *.png *.jpg *.jpeg *.gif *.svg *.woff *.woff2 *.ttf *.eot
+	}
+	handle @static {
+		header Cache-Control "public, max-age=31536000"
+		file_server
+	}
+
+	# File server for other static files
 	file_server
 }
 
@@ -435,33 +491,39 @@ func (sm *SQLiteSiteManager) createWordPressSite(site *database.Site) error {
 		fmt.Println("Creating WordPress site...")
 	}
 
-	// Copy WordPress template
-	templateDir := "/var/www/sites/wordpress-template"
-	if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-		return fmt.Errorf("WordPress template not found at %s. Please ensure the template directory exists with a WordPress installation", templateDir)
-	}
+	// Initialize WordPress manager
+	wpManager := wordpress.NewWordPressManager(sm.Config.Verbose, sm.Config.DryRun)
 
-	if sm.Config.Verbose {
-		fmt.Println("Copying WordPress template...")
-	}
-
-	// Copy template files
-	if err := sm.copyDir(templateDir, site.DocumentRoot); err != nil {
-		return fmt.Errorf("failed to copy WordPress template: %v", err)
+	// Download and extract latest WordPress
+	if err := wpManager.DownloadAndExtract(site.DocumentRoot); err != nil {
+		// Cleanup on error
+		wpManager.CleanupOnError(site.DocumentRoot)
+		return fmt.Errorf("failed to download and extract WordPress: %v", err)
 	}
 
 	// Create database and user
 	if err := sm.setupWordPressDatabase(site); err != nil {
+		// Cleanup on error
+		wpManager.CleanupOnError(site.DocumentRoot)
 		return err
 	}
 
-	// Generate wp-config.php
-	if err := sm.generateWordPressConfig(site); err != nil {
-		return err
+	// Generate secure wp-config.php with latest best practices
+	if err := wpManager.GenerateSecureConfig(site.DocumentRoot, site.DBName, site.DBUser, site.DBPassword); err != nil {
+		// Cleanup on error
+		wpManager.CleanupOnError(site.DocumentRoot)
+		return fmt.Errorf("failed to generate WordPress configuration: %v", err)
+	}
+
+	// Validate WordPress installation
+	if err := wpManager.ValidateWordPressInstallation(site.DocumentRoot); err != nil {
+		// Cleanup on error
+		wpManager.CleanupOnError(site.DocumentRoot)
+		return fmt.Errorf("WordPress installation validation failed: %v", err)
 	}
 
 	if sm.Config.Verbose {
-		fmt.Println("WordPress configuration created")
+		fmt.Println("WordPress installation completed successfully")
 	}
 
 	return nil
@@ -932,61 +994,6 @@ func (sm *SQLiteSiteManager) setupWordPressDatabase(site *database.Site) error {
 	}
 
 	return nil
-}
-
-func (sm *SQLiteSiteManager) generateWordPressConfig(site *database.Site) error {
-	// Get WordPress salts
-	saltKeys, err := sm.getWordPressSalts()
-	if err != nil {
-		return fmt.Errorf("failed to get WordPress salts: %v", err)
-	}
-
-	wpConfigContent := fmt.Sprintf(`<?php
-define( 'DB_NAME', '%s' );
-define( 'DB_USER', '%s' );
-define( 'DB_PASSWORD', '%s' );
-define( 'DB_HOST', 'localhost' );
-define( 'DB_CHARSET', 'utf8mb4' );
-define( 'DB_COLLATE', '' );
-
-%s
-
-$table_prefix = 'wp_';
-
-define( 'WP_DEBUG', false );
-
-if ( ! defined( 'ABSPATH' ) ) {
-    define( 'ABSPATH', __DIR__ . '/' );
-}
-
-require_once ABSPATH . 'wp-settings.php';
-`, site.DBName, site.DBUser, site.DBPassword, saltKeys)
-
-	wpConfigFile := filepath.Join(site.DocumentRoot, "wp-config.php")
-	if err := os.WriteFile(wpConfigFile, []byte(wpConfigContent), 0600); err != nil {
-		return fmt.Errorf("failed to create wp-config.php: %v", err)
-	}
-
-	return nil
-}
-
-func (sm *SQLiteSiteManager) getWordPressSalts() (string, error) {
-	resp, err := http.Get("https://api.wordpress.org/secret-key/1.1/salt/")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	salts, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return string(salts), nil
-}
-
-func (sm *SQLiteSiteManager) copyDir(src, dst string) error {
-	return exec.Command("cp", "-R", src+"/.", dst+"/").Run()
 }
 
 func (sm *SQLiteSiteManager) confirmOverwrite(message string) bool {
