@@ -183,10 +183,34 @@ func (sm *CaddySiteManager) getSiteInfo(domain string) (*CaddySite, error) {
 		return nil, fmt.Errorf("site config not found: %s", domain)
 	}
 
-	// Read config file to extract document root
+	// Try to extract document root from config file
 	documentRoot, err := sm.extractDocumentRoot(configFile, domain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract document root: %v", err)
+		if sm.Config.Verbose {
+			fmt.Printf("Failed to extract document root from config: %v\n", err)
+			fmt.Printf("Using fallback method...\n")
+		}
+		
+		// Fallback: use standard directory structure
+		documentRoot = filepath.Join("/var/www/sites", domain)
+		
+		// Verify the directory exists
+		if _, err := os.Stat(documentRoot); os.IsNotExist(err) {
+			// Try alternative web root from config
+			if sm.Config.WebRoot != "" {
+				documentRoot = filepath.Join(sm.Config.WebRoot, "sites", domain)
+				if _, err := os.Stat(documentRoot); os.IsNotExist(err) {
+					return nil, fmt.Errorf("could not find document root for domain %s. Tried: /var/www/sites/%s and %s/sites/%s", 
+						domain, domain, sm.Config.WebRoot, domain)
+				}
+			} else {
+				return nil, fmt.Errorf("could not find document root for domain %s. Directory /var/www/sites/%s does not exist", domain, domain)
+			}
+		}
+		
+		if sm.Config.Verbose {
+			fmt.Printf("Using fallback document root: %s\n", documentRoot)
+		}
 	}
 
 	// Check if it's a WordPress site
@@ -215,34 +239,66 @@ func (sm *CaddySiteManager) extractDocumentRoot(configFile, domain string) (stri
 	}
 	defer file.Close()
 
+	if sm.Config.Verbose {
+		fmt.Printf("Parsing config file: %s for domain: %s\n", configFile, domain)
+	}
+
 	scanner := bufio.NewScanner(file)
 	inDomainBlock := false
 	braceCount := 0
+	lineNum := 0
 
 	for scanner.Scan() {
+		lineNum++
 		line := strings.TrimSpace(scanner.Text())
+		
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		
+		if sm.Config.Verbose && sm.Config.DryRun {
+			fmt.Printf("Line %d: %s\n", lineNum, line)
+		}
 		
 		// Check if we're entering the domain block
 		if strings.Contains(line, domain) && strings.Contains(line, "{") {
 			inDomainBlock = true
 			braceCount = 1
+			if sm.Config.Verbose {
+				fmt.Printf("Found domain block for %s at line %d\n", domain, lineNum)
+			}
 			continue
 		} else if strings.Contains(line, domain) && !strings.Contains(line, "{") {
 			inDomainBlock = true
 			braceCount = 0
+			if sm.Config.Verbose {
+				fmt.Printf("Found domain block for %s at line %d (no opening brace)\n", domain, lineNum)
+			}
 			continue
 		}
 
 		if inDomainBlock {
 			// Count braces
-			braceCount += strings.Count(line, "{") - strings.Count(line, "}")
+			openBraces := strings.Count(line, "{")
+			closeBraces := strings.Count(line, "}")
+			braceCount += openBraces - closeBraces
 			
 			// Look for root directive
-			if strings.HasPrefix(line, "root ") {
+			if strings.HasPrefix(line, "root ") || strings.Contains(line, "root ") {
 				parts := strings.Fields(line)
+				if sm.Config.Verbose {
+					fmt.Printf("Found root directive at line %d: %v\n", lineNum, parts)
+				}
 				if len(parts) >= 3 && parts[1] == "*" {
+					if sm.Config.Verbose {
+						fmt.Printf("Extracted document root: %s\n", parts[2])
+					}
 					return parts[2], nil
 				} else if len(parts) >= 2 {
+					if sm.Config.Verbose {
+						fmt.Printf("Extracted document root: %s\n", parts[1])
+					}
 					return parts[1], nil
 				}
 			}
@@ -250,8 +306,15 @@ func (sm *CaddySiteManager) extractDocumentRoot(configFile, domain string) (stri
 			// Exit domain block when braces are balanced
 			if braceCount <= 0 {
 				inDomainBlock = false
+				if sm.Config.Verbose {
+					fmt.Printf("Exiting domain block at line %d\n", lineNum)
+				}
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading config file: %v", err)
 	}
 
 	return "", fmt.Errorf("could not find root directive for domain %s", domain)
