@@ -15,7 +15,7 @@ import (
 // Additional helper methods for site operations
 
 // EnableSite enables a site by creating a symlink
-func (sm *SiteManager) EnableSite(domain string) error {
+func (sm *CaddySiteManager) EnableSite(domain string) error {
 	if sm.Config.Verbose {
 		fmt.Printf("Enabling site: %s\n", domain)
 	}
@@ -59,7 +59,7 @@ func (sm *SiteManager) EnableSite(domain string) error {
 }
 
 // DisableSite disables a site by removing the symlink
-func (sm *SiteManager) DisableSite(domain string) error {
+func (sm *CaddySiteManager) DisableSite(domain string) error {
 	if sm.Config.Verbose {
 		fmt.Printf("Disabling site: %s\n", domain)
 	}
@@ -91,7 +91,7 @@ func (sm *SiteManager) DisableSite(domain string) error {
 }
 
 // ListSites lists all available and enabled sites
-func (sm *SiteManager) ListSites() error {
+func (sm *CaddySiteManager) ListSites() error {
 	// List available sites
 	fmt.Println("Available sites:")
 	availableFiles, err := filepath.Glob(filepath.Join(sm.Config.AvailableSites, "*"))
@@ -124,7 +124,7 @@ func (sm *SiteManager) ListSites() error {
 }
 
 // validateAndReloadCaddy validates and reloads the Caddy configuration
-func (sm *SiteManager) validateAndReloadCaddy() error {
+func (sm *CaddySiteManager) validateAndReloadCaddy() error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Println("Would validate and reload Caddy configuration")
@@ -151,7 +151,7 @@ func (sm *SiteManager) validateAndReloadCaddy() error {
 }
 
 // reloadCaddy reloads the Caddy service
-func (sm *SiteManager) reloadCaddy() error {
+func (sm *CaddySiteManager) reloadCaddy() error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Println("Would reload Caddy")
@@ -176,7 +176,7 @@ func (sm *SiteManager) reloadCaddy() error {
 }
 
 // getSiteInfo extracts site information from config file
-func (sm *SiteManager) getSiteInfo(domain string) (*Site, error) {
+func (sm *CaddySiteManager) getSiteInfo(domain string) (*CaddySite, error) {
 	configFile := filepath.Join(sm.Config.AvailableSites, domain)
 	
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
@@ -198,7 +198,7 @@ func (sm *SiteManager) getSiteInfo(domain string) (*Site, error) {
 
 	poolName := generatePoolName(domain)
 
-	return &Site{
+	return &CaddySite{
 		Domain:       domain,
 		DocumentRoot: documentRoot,
 		IsWordPress:  isWordPress,
@@ -208,7 +208,7 @@ func (sm *SiteManager) getSiteInfo(domain string) (*Site, error) {
 }
 
 // extractDocumentRoot extracts the document root from a Caddy config file
-func (sm *SiteManager) extractDocumentRoot(configFile, domain string) (string, error) {
+func (sm *CaddySiteManager) extractDocumentRoot(configFile, domain string) (string, error) {
 	file, err := os.Open(configFile)
 	if err != nil {
 		return "", err
@@ -258,7 +258,7 @@ func (sm *SiteManager) extractDocumentRoot(configFile, domain string) (string, e
 }
 
 // removePHPFPMPool removes a PHP-FPM pool
-func (sm *SiteManager) removePHPFPMPool(site *Site) error {
+func (sm *CaddySiteManager) removePHPFPMPool(site *CaddySite) error {
 	poolConfigFile := fmt.Sprintf("/etc/php/%s/fpm/pool.d/%s.conf", site.PHPVersion, site.PoolName)
 	poolLogFile := fmt.Sprintf("/var/log/php/%s-error.log", site.PoolName)
 	
@@ -303,7 +303,7 @@ func (sm *SiteManager) removePHPFPMPool(site *Site) error {
 }
 
 // removeSymlink removes a symlink
-func (sm *SiteManager) removeSymlink(symlinkPath string) error {
+func (sm *CaddySiteManager) removeSymlink(symlinkPath string) error {
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		if sm.Config.Verbose {
 			fmt.Printf("Symlink not found: %s\n", symlinkPath)
@@ -334,7 +334,7 @@ func (sm *SiteManager) removeSymlink(symlinkPath string) error {
 }
 
 // removeFile removes a file
-func (sm *SiteManager) removeFile(filePath, description string) error {
+func (sm *CaddySiteManager) removeFile(filePath, description string) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		if sm.Config.Verbose {
 			fmt.Printf("%s not found: %s\n", description, filePath)
@@ -365,7 +365,7 @@ func (sm *SiteManager) removeFile(filePath, description string) error {
 }
 
 // removeDirectory removes a directory recursively
-func (sm *SiteManager) removeDirectory(dirPath string) error {
+func (sm *CaddySiteManager) removeDirectory(dirPath string) error {
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		if sm.Config.Verbose {
 			fmt.Printf("Directory not found: %s\n", dirPath)
@@ -396,7 +396,7 @@ func (sm *SiteManager) removeDirectory(dirPath string) error {
 }
 
 // printSuccessMessage prints the success message after site creation
-func (sm *SiteManager) printSuccessMessage(site *Site) {
+func (sm *CaddySiteManager) printSuccessMessage(site *CaddySite) {
 	siteType := "PHP"
 	if site.IsWordPress {
 		siteType = "WordPress"
@@ -445,7 +445,7 @@ func (sm *SiteManager) printSuccessMessage(site *Site) {
 // Missing methods implementations
 
 // checkConflicts checks for existing site conflicts
-func (sm *SiteManager) checkConflicts(site *Site) error {
+func (sm *CaddySiteManager) checkConflicts(site *CaddySite) error {
 	// Check if site directory already exists
 	if _, err := os.Stat(site.DocumentRoot); err == nil {
 		if !sm.Config.DryRun {
@@ -487,7 +487,7 @@ func (sm *SiteManager) checkConflicts(site *Site) error {
 }
 
 // checkDatabaseConflicts checks for existing database conflicts
-func (sm *SiteManager) checkDatabaseConflicts(site *Site) error {
+func (sm *CaddySiteManager) checkDatabaseConflicts(site *CaddySite) error {
 	if sm.Config.DryRun {
 		return nil
 	}
@@ -533,7 +533,7 @@ func (sm *SiteManager) checkDatabaseConflicts(site *Site) error {
 }
 
 // createPHPFPMPool creates a custom PHP-FPM pool for the site
-func (sm *SiteManager) createPHPFPMPool(site *Site) error {
+func (sm *CaddySiteManager) createPHPFPMPool(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would create PHP-FPM pool: %s\n", site.PoolName)
@@ -568,7 +568,7 @@ func (sm *SiteManager) createPHPFPMPool(site *Site) error {
 }
 
 // restartPHPFPM restarts PHP-FPM to load the new pool
-func (sm *SiteManager) restartPHPFPM(phpVersion string) error {
+func (sm *CaddySiteManager) restartPHPFPM(phpVersion string) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would restart PHP-FPM %s\n", phpVersion)
@@ -594,7 +594,7 @@ func (sm *SiteManager) restartPHPFPM(phpVersion string) error {
 }
 
 // createSiteDirectory creates the site directory structure
-func (sm *SiteManager) createSiteDirectory(site *Site) error {
+func (sm *CaddySiteManager) createSiteDirectory(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would create site directory: %s\n", site.DocumentRoot)
@@ -614,7 +614,7 @@ func (sm *SiteManager) createSiteDirectory(site *Site) error {
 }
 
 // createBasicPHPSite creates a basic PHP site structure
-func (sm *SiteManager) createBasicPHPSite(site *Site) error {
+func (sm *CaddySiteManager) createBasicPHPSite(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would create basic PHP site files in: %s\n", site.DocumentRoot)
@@ -646,7 +646,7 @@ echo "<p>Server Time: " . date('Y-m-d H:i:s') . "</p>";
 }
 
 // createWordPressSite creates a WordPress site
-func (sm *SiteManager) createWordPressSite(site *Site) error {
+func (sm *CaddySiteManager) createWordPressSite(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would create WordPress site in: %s\n", site.DocumentRoot)
@@ -691,7 +691,7 @@ func (sm *SiteManager) createWordPressSite(site *Site) error {
 }
 
 // setupWordPressDatabase creates the database and user for WordPress
-func (sm *SiteManager) setupWordPressDatabase(site *Site) error {
+func (sm *CaddySiteManager) setupWordPressDatabase(site *CaddySite) error {
 	if sm.Config.Verbose {
 		fmt.Println("Setting up database and user...")
 	}
@@ -714,7 +714,7 @@ func (sm *SiteManager) setupWordPressDatabase(site *Site) error {
 }
 
 // generateWordPressConfig generates wp-config.php for WordPress
-func (sm *SiteManager) generateWordPressConfig(site *Site) error {
+func (sm *CaddySiteManager) generateWordPressConfig(site *CaddySite) error {
 	// Get WordPress salts
 	saltKeys, err := sm.getWordPressSalts()
 	if err != nil {
@@ -751,7 +751,7 @@ require_once ABSPATH . 'wp-settings.php';
 }
 
 // setPermissions sets proper file permissions for the site
-func (sm *SiteManager) setPermissions(site *Site) error {
+func (sm *CaddySiteManager) setPermissions(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would set permissions for: %s\n", site.DocumentRoot)
@@ -790,7 +790,7 @@ func (sm *SiteManager) setPermissions(site *Site) error {
 }
 
 // generateCaddyConfig generates the Caddy configuration for the site
-func (sm *SiteManager) generateCaddyConfig(site *Site) error {
+func (sm *CaddySiteManager) generateCaddyConfig(site *CaddySite) error {
 	if sm.Config.DryRun {
 		if sm.Config.Verbose {
 			fmt.Printf("Would create Caddy config: %s\n", site.ConfigFile)
@@ -821,7 +821,7 @@ func (sm *SiteManager) generateCaddyConfig(site *Site) error {
 // Helper methods for SiteManager
 
 // confirmOverwrite prompts the user for confirmation
-func (sm *SiteManager) confirmOverwrite(message string) bool {
+func (sm *CaddySiteManager) confirmOverwrite(message string) bool {
 	fmt.Printf("Warning: %s.\n", message)
 	fmt.Print("Do you want to overwrite? (y/n): ")
 	var response string
@@ -830,7 +830,7 @@ func (sm *SiteManager) confirmOverwrite(message string) bool {
 }
 
 // getWordPressSalts retrieves WordPress security salts from the API
-func (sm *SiteManager) getWordPressSalts() (string, error) {
+func (sm *CaddySiteManager) getWordPressSalts() (string, error) {
 	resp, err := http.Get("https://api.wordpress.org/secret-key/1.1/salt/")
 	if err != nil {
 		return "", err
@@ -846,7 +846,7 @@ func (sm *SiteManager) getWordPressSalts() (string, error) {
 }
 
 // copyDir recursively copies a directory
-func (sm *SiteManager) copyDir(src, dst string) error {
+func (sm *CaddySiteManager) copyDir(src, dst string) error {
 	return exec.Command("cp", "-R", src+"/.", dst+"/").Run()
 }
 

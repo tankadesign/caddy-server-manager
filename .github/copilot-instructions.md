@@ -29,7 +29,9 @@ This is a completed Go CLI application for managing Caddy PHP/WordPress sites. T
 
 ```bash
 # Build the project
-go build
+go build -o build/caddy-site-manager
+
+cd build
 
 # Create a PHP site
 ./caddy-site-manager create example.com
@@ -48,6 +50,8 @@ go build
 ```
 
 ## Build for Production
+
+Always build into the build directory.
 
 ```bash
 # Linux server deployment

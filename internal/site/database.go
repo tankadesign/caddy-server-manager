@@ -10,7 +10,7 @@ import (
 // Database helper methods
 
 // databaseExists checks if a database exists
-func (sm *SiteManager) databaseExists(dbName string) (bool, error) {
+func (sm *CaddySiteManager) databaseExists(dbName string) (bool, error) {
 	cmd := exec.Command("mysql", "-u", "root", "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s';", dbName))
 	output, err := cmd.Output()
 	if err != nil {
@@ -21,7 +21,7 @@ func (sm *SiteManager) databaseExists(dbName string) (bool, error) {
 }
 
 // databaseUserExists checks if a database user exists
-func (sm *SiteManager) databaseUserExists(dbUser string) (bool, error) {
+func (sm *CaddySiteManager) databaseUserExists(dbUser string) (bool, error) {
 	query := fmt.Sprintf("SELECT User FROM mysql.user WHERE User='%s' AND Host='localhost';", dbUser)
 	cmd := exec.Command("mysql", "-u", "root", "-e", query)
 	output, err := cmd.Output()
@@ -33,21 +33,21 @@ func (sm *SiteManager) databaseUserExists(dbUser string) (bool, error) {
 }
 
 // dropDatabase drops a database
-func (sm *SiteManager) dropDatabase(dbName string) error {
+func (sm *CaddySiteManager) dropDatabase(dbName string) error {
 	query := fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", dbName)
 	cmd := exec.Command("mysql", "-u", "root", "-e", query)
 	return cmd.Run()
 }
 
 // dropDatabaseUser drops a database user
-func (sm *SiteManager) dropDatabaseUser(dbUser string) error {
+func (sm *CaddySiteManager) dropDatabaseUser(dbUser string) error {
 	query := fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost';", dbUser)
 	cmd := exec.Command("mysql", "-u", "root", "-e", query)
 	return cmd.Run()
 }
 
 // deleteDatabase deletes a WordPress database and user
-func (sm *SiteManager) deleteDatabase(site *Site) error {
+func (sm *CaddySiteManager) deleteDatabase(site *CaddySite) error {
 	if !site.IsWordPress {
 		if sm.Config.Verbose {
 			fmt.Println("Basic PHP site detected - skipping database deletion")
@@ -106,7 +106,7 @@ type WPDBInfo struct {
 }
 
 // extractWPDBInfo extracts database information from wp-config.php
-func (sm *SiteManager) extractWPDBInfo(wpConfigPath string) (*WPDBInfo, error) {
+func (sm *CaddySiteManager) extractWPDBInfo(wpConfigPath string) (*WPDBInfo, error) {
 	content, err := os.ReadFile(wpConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read wp-config.php: %v", err)

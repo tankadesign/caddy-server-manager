@@ -20,7 +20,7 @@ A powerful CLI tool for managing PHP and WordPress sites with Caddy web server. 
 ```bash
 git clone <repository-url>
 cd caddy-site-manager-golang
-go build
+go build -o build/caddy-site-manager
 ```
 
 ### Pre-built Binaries
@@ -30,11 +30,13 @@ Download the appropriate binary for your platform from the releases page.
 ## Quick Start
 
 1. **Create a basic PHP site:**
+
    ```bash
    caddy-site-manager create mysite.com
    ```
 
 2. **Create a WordPress site:**
+
    ```bash
    caddy-site-manager create blog.com --wordpress
    ```
@@ -107,10 +109,10 @@ caddy-site-manager create site.com --config=/path/to/config.yaml
 Create a configuration file at `~/.caddy-site-manager.yaml`:
 
 ```yaml
-caddy_config: "/etc/caddy"
-web_root: "/var/www"
-php_version: "8.3"
-max_upload: "256M"
+caddy_config: '/etc/caddy'
+web_root: '/var/www'
+php_version: '8.3'
+max_upload: '256M'
 ```
 
 ### Directory Structure
@@ -168,30 +170,30 @@ Example for WordPress:
 blog.example.com {
     root * /var/www/sites/blog.example.com
     encode gzip
-    
+
     request_body {
         max_size 256M
     }
-    
+
     php_fastcgi unix//run/php/php8.3-fpm-blog_example_com.sock {
         index index.php
     }
-    
+
     try_files {path} {path}/ /index.php?{query}
-    
+
     @forbidden {
         path *.sql
         path /wp-config.php
         path /wp-content/debug.log
     }
     respond @forbidden 403
-    
+
     header {
         -Server
         X-Content-Type-Options nosniff
         X-XSS-Protection "1; mode=block"
     }
-    
+
     file_server
 }
 ```
@@ -275,6 +277,7 @@ This tool is a direct port of bash scripts with these improvements:
 ## Support
 
 For issues and questions:
+
 - Check the documentation in this README
 - Review the BUILD.md for deployment instructions
 - Use `--verbose` flag for detailed output

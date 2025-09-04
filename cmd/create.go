@@ -43,13 +43,13 @@ Examples:
 		}
 
 		// Create site manager
-		sm, err := site.NewSiteManager(cfg)
+		sm, err := site.NewCaddySiteManager(cfg)
 		if err != nil {
 			return err
 		}
 
 		// Create site options
-		opts := &site.CreateOptions{
+		opts := &site.SiteCreateOptions{
 			Domain:     domain,
 			WordPress:  wordpress,
 			DBName:     dbName,

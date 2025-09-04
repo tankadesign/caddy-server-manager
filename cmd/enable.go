@@ -25,7 +25,7 @@ var enableCmd = &cobra.Command{
 		}
 
 		// Create site manager
-		sm, err := site.NewSiteManager(cfg)
+		sm, err := site.NewCaddySiteManager(cfg)
 		if err != nil {
 			return err
 		}
@@ -53,7 +53,7 @@ var disableCmd = &cobra.Command{
 		}
 
 		// Create site manager
-		sm, err := site.NewSiteManager(cfg)
+		sm, err := site.NewCaddySiteManager(cfg)
 		if err != nil {
 			return err
 		}
@@ -88,13 +88,13 @@ With --hard: Removes symlink, deletes config file, removes database (if WordPres
 		}
 
 		// Create site manager
-		sm, err := site.NewSiteManager(cfg)
+		sm, err := site.NewCaddySiteManager(cfg)
 		if err != nil {
 			return err
 		}
 
 		// Delete site options
-		opts := &site.DeleteOptions{
+		opts := &site.SiteDeleteOptions{
 			Domain: domain,
 			Hard:   hard,
 			Force:  force,
@@ -120,7 +120,7 @@ var listCmd = &cobra.Command{
 		}
 
 		// Create site manager
-		sm, err := site.NewSiteManager(cfg)
+		sm, err := site.NewCaddySiteManager(cfg)
 		if err != nil {
 			return err
 		}

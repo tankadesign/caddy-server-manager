@@ -12,8 +12,8 @@ import (
 	"github.com/falcon/caddy-site-manager/internal/config"
 )
 
-// CreateOptions represents options for creating a site
-type CreateOptions struct {
+// SiteCreateOptions represents options for creating a site
+type SiteCreateOptions struct {
 	Domain     string
 	WordPress  bool
 	DBName     string
@@ -22,15 +22,15 @@ type CreateOptions struct {
 	PHPVersion string
 }
 
-// DeleteOptions represents options for deleting a site
-type DeleteOptions struct {
+// SiteDeleteOptions represents options for deleting a site
+type SiteDeleteOptions struct {
 	Domain     string
 	Hard       bool
 	Force      bool
 }
 
-// Site represents a website configuration
-type Site struct {
+// CaddySite represents a website configuration
+type CaddySite struct {
 	Domain        string
 	Path          string
 	PHPVersion    string
@@ -45,17 +45,17 @@ type Site struct {
 	MaxUpload     string
 }
 
-// SiteManager handles site operations
-type SiteManager struct {
+// CaddySiteManager handles site operations
+type CaddySiteManager struct {
 	Config         *config.CaddyConfig
 	caddyTmpl      *template.Template
 	wpTmpl         *template.Template
 	phpPoolTmpl    *template.Template
 }
 
-// NewSiteManager creates a new SiteManager
-func NewSiteManager(cfg *config.CaddyConfig) (*SiteManager, error) {
-	sm := &SiteManager{
+// NewCaddySiteManager creates a new SiteManager
+func NewCaddySiteManager(cfg *config.CaddyConfig) (*CaddySiteManager, error) {
+	sm := &CaddySiteManager{
 		Config: cfg,
 	}
 
@@ -68,7 +68,7 @@ func NewSiteManager(cfg *config.CaddyConfig) (*SiteManager, error) {
 }
 
 // CreateSite creates a new site with all the comprehensive features from the bash script
-func (sm *SiteManager) CreateSite(opts *CreateOptions) error {
+func (sm *CaddySiteManager) CreateSite(opts *SiteCreateOptions) error {
 	// Validate domain
 	if opts.Domain == "" {
 		return fmt.Errorf("domain is required")
@@ -105,7 +105,7 @@ func (sm *SiteManager) CreateSite(opts *CreateOptions) error {
 		dbUser = dbName // Set DB_USER to same as DB_NAME as per requirement
 	}
 
-	site := &Site{
+	site := &CaddySite{
 		Domain:       opts.Domain,
 		Path:         opts.Domain,
 		PHPVersion:   opts.PHPVersion,
@@ -189,7 +189,7 @@ func (sm *SiteManager) CreateSite(opts *CreateOptions) error {
 }
 
 // DeleteSite deletes a site based on the delete options
-func (sm *SiteManager) DeleteSite(opts *DeleteOptions) error {
+func (sm *CaddySiteManager) DeleteSite(opts *SiteDeleteOptions) error {
 	if opts.Domain == "" {
 		return fmt.Errorf("domain is required")
 	}
@@ -207,7 +207,7 @@ func (sm *SiteManager) DeleteSite(opts *DeleteOptions) error {
 }
 
 // softDelete removes only the symlink (disables the site)
-func (sm *SiteManager) softDelete(opts *DeleteOptions) error {
+func (sm *CaddySiteManager) softDelete(opts *SiteDeleteOptions) error {
 	if sm.Config.Verbose {
 		fmt.Printf("Performing soft delete for %s (removing symlink only)...\n", opts.Domain)
 	}
@@ -229,7 +229,7 @@ func (sm *SiteManager) softDelete(opts *DeleteOptions) error {
 }
 
 // hardDelete performs complete removal
-func (sm *SiteManager) hardDelete(opts *DeleteOptions) error {
+func (sm *CaddySiteManager) hardDelete(opts *SiteDeleteOptions) error {
 	// Get site info
 	site, err := sm.getSiteInfo(opts.Domain)
 	if err != nil {
@@ -326,7 +326,7 @@ func confirmDeletion() bool {
 }
 
 // initTemplates initializes the configuration templates
-func (sm *SiteManager) initTemplates() error {
+func (sm *CaddySiteManager) initTemplates() error {
 	// PHP-FPM pool template
 	phpPoolTemplate := `[{{.PoolName}}]
 user = www-data

@@ -42,16 +42,19 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o caddy-site-manager-linux-ar
 ### Deployment to Remote Server
 
 1. **Build for your target server:**
+
    ```bash
    GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o caddy-site-manager-linux
    ```
 
 2. **Copy to server:**
+
    ```bash
    scp caddy-site-manager-linux user@your-server:/usr/local/bin/caddy-site-manager
    ```
 
 3. **Set permissions on server:**
+
    ```bash
    ssh user@your-server "chmod +x /usr/local/bin/caddy-site-manager"
    ```
@@ -64,16 +67,18 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o caddy-site-manager-linux-ar
 ### Server Requirements
 
 Your server needs:
+
 - **Caddy web server** installed and running
 - **PHP-FPM** (version 8.1+ recommended)
 - **MySQL/MariaDB** (for WordPress sites)
 - **Proper directory structure:**
+
   ```
   /etc/caddy/
   ├── available-sites/
   ├── enabled-sites/
   └── Caddyfile
-  
+
   /var/www/
   └── sites/
   ```
@@ -128,10 +133,10 @@ Create `/etc/caddy-site-manager.yaml`:
 
 ```yaml
 # Caddy Site Manager Configuration
-caddy_config: "/etc/caddy"
-web_root: "/var/www"
-php_version: "8.3"
-max_upload: "256M"
+caddy_config: '/etc/caddy'
+web_root: '/var/www'
+php_version: '8.3'
+max_upload: '256M'
 ```
 
 ### System Integration
@@ -152,26 +157,31 @@ import enabled-sites/*
 ## Usage Examples
 
 ### Create a basic PHP site:
+
 ```bash
 caddy-site-manager create mysite.com
 ```
 
 ### Create a WordPress site:
+
 ```bash
 caddy-site-manager create blog.com --wordpress
 ```
 
 ### Create with custom settings:
+
 ```bash
 caddy-site-manager create bigsite.com --wordpress --max-upload=1G --php=8.2
 ```
 
 ### Test before applying (dry-run):
+
 ```bash
 caddy-site-manager create test.com --dry-run --verbose
 ```
 
 ### Site management:
+
 ```bash
 # List all sites
 caddy-site-manager list
@@ -192,6 +202,7 @@ caddy-site-manager delete mysite.com --hard --force
 ## Binary Sizes
 
 Typical binary sizes with optimization flags:
+
 - Linux AMD64: ~13-15 MB
 - Linux ARM64: ~12-14 MB
 
